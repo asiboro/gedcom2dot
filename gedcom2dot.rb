@@ -3,7 +3,7 @@
 # Converts a GEDCOM file into a DOT file, with pruning options
 #
 # Originally written Oct 8, 2007 by Stonewall Ballard
-# Modified by December 2014 by Arnold P. Siboro
+# Modified and improved by December 2014 by Arnold P. Siboro
 #
 # Related sources:
 #
@@ -206,7 +206,7 @@ class DotMaker < GEDCOM::Parser
 		for i in 1..splitname.length do
 # If the name is within brackets, then actual name of the person is unknown
 			if(splitname[i-1] =~ /^\(.+\)/) 
-				splitname[i-1] = "(....)\n" 
+				splitname[i-1] = "(....)\\n" 
 			end
 		end	
 			
@@ -228,7 +228,7 @@ class DotMaker < GEDCOM::Parser
 # If this name is not an initial (ended by "."), or if it is an initial but before a non-initial
 			if(splitname[i-1] && splitname[i])
 			if(splitname[i-1][-1,1] != "." || (splitname[i-1][-1,1] == "." && splitname[i][-1,1] != "."))
-				splitname[i-1]=splitname[i-1] + "\n"
+				splitname[i-1]=splitname[i-1] + "\\n"
 			end
 			end
 		end
@@ -256,6 +256,7 @@ class DotMaker < GEDCOM::Parser
 		puts "    fontsize=6"
 		if @root_is_family
 			# color the root family red
+		print "\n// Root entity\n"
 			puts "    #{@root_entity} [style=filled fillcolor=red]"
 		end
 		# the format of the regular family nodes
@@ -264,7 +265,7 @@ class DotMaker < GEDCOM::Parser
 		ids_on_line = 0
 
 		$stderr.puts "Write node definition of all marked families ... "
-		print "    "
+		print "\n// All families\n"
 		@families.each_value do |fam|
 # if family is marked, then write node definition
 			next unless fam.marked
@@ -281,7 +282,7 @@ class DotMaker < GEDCOM::Parser
 
 		counter=0;
 		$stderr.puts "Write node definition of all marked persons..."
-		print "    "
+		print "\n// All persons\n"
 		@people.each_value do |person|
 			counter=counter+1;
 # if person is marked, then write node definition
@@ -306,10 +307,12 @@ class DotMaker < GEDCOM::Parser
 		puts "    node [shape=box]"
 		if @root_entity && !@root_is_family #never executed?
 			# format the root person node specially
+			print "\n// Root entity\n"
 			puts "    #{@root_entity} [style=filled fillcolor=red]"
 		end
 
 		$stderr.puts "Connecting all marked persons to their parent family..."
+		print "\n// Connection of all persons to their parent family\n"
 		# the format of the person nodes applies to all unseen (so far) nodes
 		# note that there's no "empty" style, but just saying [style] seems to return it to the default
 		# puts "    node [style]"
@@ -323,6 +326,7 @@ class DotMaker < GEDCOM::Parser
 
 # connect families, and shows persons connected by marriage
 		$stderr.puts "Connecting couples to their family..."
+		print "\n// Connection of couples to their family\n"
 		@families.each_value do |f|
 # if family is marked, then write connection
 			next unless f.marked
@@ -337,10 +341,9 @@ class DotMaker < GEDCOM::Parser
 				#$stderr.puts "#{nonbloodrelated[0]}: #{nonbloodrelatedperson.name}" 
 
 				labelname=createlabelname(nonbloodrelatedperson.name)
-			print "#{nonbloodrelatedperson.id} [ label=\"" + "#{labelname}" + "\" shape=box fontsize=6 color=white style=solid];"
+			print "\n    #{nonbloodrelatedperson.id} [ label=\"" + "#{labelname}" + "\" shape=box fontsize=6 color=white style=solid]; // Non-blood related spouse\n"
+			end
 
-
-end
 			unless par.empty?
 				pars = par.join('; ')
 				pars = "{#{pars};}" if par.length > 1
