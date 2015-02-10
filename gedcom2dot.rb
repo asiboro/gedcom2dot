@@ -17,6 +17,8 @@
 #
 # License: Creative Commons Attribution 3.0 Unported <http://creativecommons.org/licenses/by/3.0/>
 
+# Cannot yet handle multiple wifes!!
+
 require 'gedcom'
 #require './gedcom-ruby/lib/gedcom.rb'
 require 'getoptlong'
@@ -169,7 +171,8 @@ class DotMaker < GEDCOM::Parser
 			end
 		end
 	end
-	
+
+	# Mark families to be included in the graph
 	def mark_family(family)
 		family.marked = true
 		family.parents.each { |p| mark_parents( @people[p] ) }
@@ -213,6 +216,7 @@ class DotMaker < GEDCOM::Parser
 		name=splitname.join("")
 
 # Initialize long name
+# not working yet
 		splitname=name.split(" ")
 		for i in 1..splitname.length do
 # If there are more than 2 names, and this is not 1st name or last name, and it is not already initialized, and this is not 2nd name while the first name is a title such as "Ompu"
