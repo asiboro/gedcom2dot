@@ -23,6 +23,8 @@ require 'gedcom'
 #require './gedcom-ruby/lib/gedcom.rb'
 require 'getoptlong'
 
+$orientation="horizontal" # vertical or horizontal
+
 $HELP_TEXT = <<-HELPEND
 #{$0} convertes a GEDCOM file into a Graphviz DOT file
 Command: #{$0} opts gedfile
@@ -100,10 +102,19 @@ class DotMaker < GEDCOM::Parser
 	def start_person( data, state, parm )
 # set current person to the ID of the person (without the "@")
 		@current_person = Person.new cid( data )
+		#$stderr.puts "\n@current_person"
+		#$stderr.puts  @current_person.id
 	end
 
 	def register_name( data, state, parm )
-		@current_person.name = data
+# if a person has other names, previous name will be overwritten with this function, so if previous name exists, skip registering name
+# other names seem to be unsupported by GEDCOM, but exists in GEDCOM file exported by MacFamilyTree
+		if @current_person.name then 
+			#$stderr.puts  " >> This is other name of \"" + @current_person.name + "\", so omit: " + data
+		else
+			@current_person.name = data
+			#$stderr.puts  " >> " + @current_person.name;
+		end
 	end
 	
 	def register_parent_family( data, state, parm )
@@ -216,11 +227,10 @@ class DotMaker < GEDCOM::Parser
 		name=splitname.join("")
 
 # Initialize long name
-# not working yet
 		splitname=name.split(" ")
 		for i in 1..splitname.length do
 # If there are more than 2 names, and this is not 1st name or last name, and it is not already initialized, and this is not 2nd name while the first name is a title such as "Ompu"
-			if(splitname.length>2 && i != 1 && i != splitname.length && !(i==2 && (splitname[0].strip=="Ompu" || splitname[0].strip=="O." || splitname[0].strip=="Amani"|| splitname[0].strip=="A." || splitname[0].strip=="Aman" || splitname[0].strip=="Datu" || splitname[0].strip=="Nai" || splitname[0].strip=="Apa")) )
+			if(splitname.length>2 && i != 1 && i != splitname.length && !(i==2 && (splitname[0].strip=="Ompu" || splitname[0].strip=="O." || splitname[0].strip=="Amani"|| splitname[0].strip=="A." || splitname[0].strip=="Aman" || splitname[0].strip=="Datu" || splitname[0].strip=="Nai" || splitname[0].strip=="Apa" || splitname[0].strip=="Pu" || splitname[0].strip=="Na" || splitname[0].strip=="Boru" || splitname[0].strip=="Apa" || splitname[0].strip=="Raja")) )
 					splitname[i-1] = splitname[i-1][0,1].capitalize + "."
 			end	
 		end
@@ -231,18 +241,19 @@ class DotMaker < GEDCOM::Parser
 		for i in 1..splitname.length do
 # If this name is not an initial (ended by "."), or if it is an initial but before a non-initial
 			if(splitname[i-1] && splitname[i])
-			if(splitname[i-1][-1,1] != "." || (splitname[i-1][-1,1] == "." && splitname[i][-1,1] != "."))
-				splitname[i-1]=splitname[i-1] + "\\n"
-			end
+				if(splitname[i-1][-1,1] != "." || (splitname[i-1][-1,1] == "." && splitname[i][-1,1] != "."))
+#					if $orientation=="horizontal" then splitname[i-1]=splitname[i-1] + " "
+#					else splitname[i-1]=splitname[i-1] + "\\n" end
+					splitname[i-1]=splitname[i-1] + "\\n"
+				end
 			end
 		end
-
 
 		name=splitname.join("")
 
 		label= name	
 		return label
-	end
+	end # createlabelname
 
 	
 	def report
@@ -258,7 +269,9 @@ class DotMaker < GEDCOM::Parser
 		# families are circles
 		puts "    node [shape=circle]"
 		puts "    fontsize=6"
+		puts "    rankdir=RL" if $orientation=="horizontal"
 		if @root_is_family
+			$stderr.puts "Root is a family"
 			# color the root family red
 		print "\n// Root entity\n"
 			puts "    #{@root_entity} [style=filled fillcolor=red]"
@@ -273,6 +286,7 @@ class DotMaker < GEDCOM::Parser
 		@families.each_value do |fam|
 # if family is marked, then write node definition
 			next unless fam.marked
+			#$stderr.puts "#{fam.id}; "
 			print "#{fam.id}; "
  			#print "#{fam.id} [ label=\"" + "#{fam.id}" + "\" ];"
 			#if fam.parents[0] then print "#{fam.id} [ label=""" + "#{fam.parents[0]}" + """ ];" else print "#{fam.id} ;" end
@@ -323,7 +337,7 @@ class DotMaker < GEDCOM::Parser
 		# emit all the person -> family links
 		@people.each_value do |p|
 			next unless p.marked
-			puts "    #{p.id} -> #{p.parent_family}" if p.parent_family
+			puts "    #{p.id} -> #{p.parent_family}" + "  // #{p.name}" if p.parent_family
 		end
 
 		#emit all the family -> parent links
@@ -335,24 +349,43 @@ class DotMaker < GEDCOM::Parser
 # if family is marked, then write connection
 			next unless f.marked
 			par = f.parents
-			# this prunes parents that are not blood related to root entity, i.e., spouses are pruned
-			#par = par.find_all { |p| @people[p].marked }
+
+		
+#			if f.parents[0]=="I80915355" then
+#			$stderr.puts "f.parents: #{f.parents} #{@people[f.parents[0]].name}"
+#			end
+#
+#			nonbloodrelated=par.find_all { |p| !@people[p].marked }
+#			if @people[f.parents[0]].marked then $stderr.puts "#{@people[f.parents[0]].name} is blood related" else
+#			$stderr.puts "#{@people[f.parents[0]].name} is NOT blood related" end			
+
+			# this prunes parents that are not blood related to root entity, i.e., spouses are pruned. So comment this out because we want non-blood related spouses to be included
+			# par = par.find_all { |p| @people[p].marked }
 
 			# so, because we want spouse to be included too, do this
-			nonbloodrelated = par.find_all { |p| !@people[p].marked }
-			if nonbloodrelated.length==1 then # it is impossible for both parents to be non-blood related though
-				nonbloodrelatedperson=@people[nonbloodrelated[0]]
-				#$stderr.puts "#{nonbloodrelated[0]}: #{nonbloodrelatedperson.name}" 
 
-				labelname=createlabelname(nonbloodrelatedperson.name)
-			print "\n    #{nonbloodrelatedperson.id} [ label=\"" + "#{labelname}" + "\" shape=box fontsize=6 color=white style=solid]; // Non-blood related spouse\n"
-			end
+
+				$stderr.puts "people[p]: #{@people[p]}"
+				nonbloodrelated = par.find_all { |p| !@people[p].marked } # not sure why there are cases when @people[p] is nil
+				if nonbloodrelated then 
+					$stderr.puts "Nonbloodrelated!" 
+				end
+				if nonbloodrelated.length==1 then # it is impossible for both parents to be non-blood related though
+					nonbloodrelatedperson=@people[nonbloodrelated[0]] # this assumes that only one of the spouses is non-blood-related, which of course is always the case though...
+					$stderr.puts "#{nonbloodrelated[0]}: #{nonbloodrelatedperson.name}" 
+					labelname=createlabelname(nonbloodrelatedperson.name)
+					puts "\n    #{nonbloodrelatedperson.id} [ label=\"" + "#{labelname}" + "\" shape=box fontsize=6 color=white style=solid]; // Non-blood related spouse\n"
+				end
 
 			unless par.empty?
 				pars = par.join('; ')
 				pars = "{#{pars};}" if par.length > 1
-				puts "    #{f.id} -> #{pars}"
-				#$stderr.puts "#{f.id}" + " " + pars
+				if par.length > 1 then comment = "//#{@people[par[0]].name} & #{@people[par[1]].name}" 
+				else comment = "//#{@people[par[0]].name.delete("/")}"  
+				end
+				comment = comment.delete("/")
+				puts "    #{f.id} -> #{pars}" + " // #{comment}"
+#				$stderr.puts "#{comment}" + " " + "#{comment.delete("/")}"
 			end
 		end
 		puts "}\n"
@@ -372,6 +405,8 @@ root_entity = nil
 show_children = nil
 show_blood = nil
 use_initials= nil
+
+
 
 opts.each do |opt, arg|
 	case opt
@@ -403,9 +438,8 @@ if ARGV.length < 1
 end
 
 parser = DotMaker.new( root_entity, show_children, show_blood, use_initials)
-parser.parse ARGV[0]
 
-#parser.report
+parser.parse ARGV[0]
 
 # remove all the people unrelated to the root person or family if set
 parser.trim_tree if root_entity
